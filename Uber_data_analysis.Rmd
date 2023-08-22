@@ -1,0 +1,592 @@
+---
+title: "Assignment4_33059047"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+
+```{r pressure, echo=FALSE}
+library(dplyr)
+```
+
+
+```{r pressure, echo=FALSE}
+library(tidyverse)
+
+```
+##### Lets first download or read the datasets
+
+```{r}
+april_data<-read.csv("uber-raw-data-apr14.csv")
+may_data<-read.csv("uber-raw-data-may14.csv")
+june_data<-read.csv("uber-raw-data-jun14.csv")
+july_data<-read.csv("uber-raw-data-jul14.csv")
+august_data<-read.csv("uber-raw-data-aug14.csv")
+sepetember_data<-read.csv("uber-raw-data-sep14.csv")
+weather_data<-read.csv("weather_data_nyc_centralpark_2016(1).csv")
+```
+
+###### Here, post downloading the dataset we merge the datasets for each month together to create a single datasdet
+
+```{r}
+total_data<-rbind(april_data,may_data,june_data,july_data,august_data,sepetember_data)
+```
+
+##### performing some exploratory data analysis to understand the dataset
+
+```{r}
+glimpse(total_data)
+```
+##### Here we notice that the total datset has 4 columns where we have two character columns and two integer columns. We also notice that there needs to be some cleaning or wrangling to be done before we proceed to the next step.
+
+```{r}
+library(lubridate)
+```
+
+```{r}
+### converting the date time column to date time from character data type
+total_data[['Date.Time']] <- as.POSIXct(total_data[['Date.Time']],
+                                           format = "%m/%d/%Y %H:%M:%S")
+
+```
+```{r}
+glimpse(total_data)
+```
+##### In the above code we have converted the date.time column from character to date time.Now, we would seperate the date time variables for analysis into year, month, day, time.
+
+```{r}
+total_data_new <- total_data %>%
+  mutate(year = year(Date.Time),
+         month = month(Date.Time, label = TRUE, abbr = TRUE), 
+         wday = wday(Date.Time, label = TRUE, abbr = TRUE, week_start = 1),
+         day = day(Date.Time))
+```
+
+###### Describing the dataset:
+1. Date/Time: The date and time of the Uber pickup
+2. Lat: The latitude of the Uber pickup
+3. Lon: The longitude of the Uber pickup
+4. Base: The TLC base company code affiliated with the Uber pickup
+5. Year: Specifying the year of uber pickup
+6. Month: Specifying the month in which the uber pick up was done
+7. wday: Specifying the day of the week the pickup was done
+8. day: Specifying the day of the month in which the pickup was done
+
+
+```{r}
+unique(total_data_new$Base)
+```
+##### Here as you can see there are 5 unique base codes associated with the uber data . The base codes refer to the taxi or car service company that is affiliated with the uber pickup in New York.
+
+```{r}
+## finding out missing values if any
+sum(is.na(total_data_new))
+```
+##### Finding for outliers or anomoly by doing some graphical analysis
+
+```{r}
+##### summarizing total pickups done for each month by each base code
+tota_bases <- total_data_new %>% 
+  group_by(month, Base) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+
+
+
+```{r}
+##### Dataset for total pickups of each month.
+total_month<-total_data_new%>%
+  group_by(month)%>%
+  summarise(total = n())
+
+```
+
+```{r}
+total_month %>% 
+  ggplot(aes(y = total)) + 
+  geom_boxplot()
+```
+##### Here we can observer that the boxplot of pickups done every month has no outliers
+
+```{r}
+## Trips by month
+ggplot(data = total_month, aes(month, total, fill = factor(total))) +
+  geom_bar(stat = "identity") + 
+  ylab("Count") + 
+  ggtitle("Trips by month") +
+  scale_fill_discrete(name = "Total")
+
+
+```
+
+##### The graph above shows us that september is the month when maximum amount of trips were taken. The lowest amount of trips taken was during the month of April in New york. This could possibly be related to students intake rising in the month of september resulting in the more uber trips being undertaken.
+
+##### Let us dig deeper and see how does uber trips taken by customers differ by bases &  month which base code is in demand for which month. This way we can visualise the need for the base code uber cars in these areas.
+
+
+```{r}
+pd <- position_dodge(0.2)
+ggplot(tota_bases, 
+       aes(x = month, 
+           y = mean, 
+           group=Base, 
+           color=Base)) +
+  geom_point(position = pd, 
+             size = 3) +
+  geom_line(position = pd,
+            size = 1) + scale_y_continuous(expand = expansion(mult = c(0.05, 0.1)), 
+                     labels = scales::format_format(big.mark = ",", scientific = FALSE)) +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal() +
+  labs(title = "Average trips per Base by month",
+       x = "Month", 
+       y = "Average trips",
+       color = "Base")
+```
+
+##### Here we can observe that the uber cars with base code B02617 are more in demand acroos months and they should be deployed more on road.
+
+
+```{r}
+total_wday<-total_data_new%>%
+  group_by(wday)%>%
+  summarise(total = n())
+
+```
+
+```{r}
+## Trips by weekday
+ggplot(data = total_wday, aes(wday, total, fill = factor(total))) +
+  geom_bar(stat = "identity") + 
+  ylab("Count") + 
+  ggtitle("Trips by day of the week") +
+  scale_fill_discrete(name = "Total trips") + labs(title = "Pattern for trips taken each day of the week")+scale_y_continuous(expand = expansion(mult = c(0.05, 0.1)), 
+                     labels = scales::format_format(big.mark = ",", scientific = FALSE))
+```
+
+###### This time analysis shows us that more uber trips were taken during thursdays & fridays of the week this could be the busiest days of the week overall across months for uber trips
+
+```{r}
+tota_data2<-total_data_new %>%
+  mutate(hour = hour(Date.Time))
+```
+```{r}
+tota_wday_hour<-tota_data2 %>% 
+  group_by(wday, hour) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+
+##### Let us visualize the total weekday by hour
+
+
+
+
+```{r}
+p <- ggplot(tota_wday_hour, aes(x=hour, y=total_count)) +
+  geom_line() + 
+  xlab("")+facet_wrap(~ wday, nrow = 2)+labs(title = "Distribution of trip counts at each hour of the day", y = "Trip Count", x = "Hour of the day")
+p
+```
+##### Here we can notice that busiest or peak time is between 3-8pm almost every day of the week. This is busiest for weekdays such as Tuesday, Wednesday, Thursday & friday. There could be many reasons associated with it like associated to work hours. The busy times also peak around 7-8am Mon-Friday.
+```{r}
+total_base_wday<-tota_data2 %>% 
+  group_by(wday, Base) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+```{r}
+ggplot(data = total_base_wday, aes(x = Base,y=total_count, fill = wday)) +
+    geom_col(position = "dodge")+labs(title = "Distribution of trip counts for each base by weekdays", y = "Trip Count", x = "Base")
+```
+
+##### Here we can see that total trips taken by uber is highest for Tuesday - Friday for all uber bases. However the maximum trips were taken by uber base B02617 & B02598. Sundays are the lowest count for all the bases. So more number of uber drivers can be put on road for these days and especially for these base codes.
+
+##### Spatial analysis:
+
+
+
+
+
+
+```{r}
+total_locations<-tota_data2%>%
+  group_by(Lat,Lon)%>%
+  summarise(total_count = n())
+```
+
+### another dataset from different state
+
+```{r}
+Uber_data<-read.csv("cab_rides.csv")
+weather_new<-read.csv("weather_new.csv")
+```
+
+```{r}
+glimpse(Uber_data)
+```
+
+##### Cleaning the uber_data
+
+```{r}
+Uber_data2<-Uber_data%>%
+  filter(cab_type == "Uber")
+```
+
+```{r}
+##### converting timestamp to date time
+library(lubridate)
+```
+```{r}
+Uber_data2$time_stamp <- as.POSIXct(as.numeric(Uber_data2$time_stamp) / 1000, origin = "1970-01-01")
+```
+
+```{r}
+
+### extracting the year, month, weekday & hour
+Uber_data2 <-Uber_data2 %>%
+  mutate(year = year(time_stamp),
+         month = month(time_stamp, label = TRUE, abbr = TRUE), 
+         wday = wday(time_stamp, label = TRUE, abbr = TRUE, week_start = 1),
+         day = day(time_stamp))
+```
+
+```{r}
+Uber_data2<-Uber_data2 %>%
+  mutate(hour = hour(time_stamp))
+```
+```{r}
+glimpse(Uber_data2)
+```
+
+##### Checking for missing values
+```{r}
+sum(is.na(Uber_data2))
+```
+##### We delete these NA values since these NA values may be due to non-recording of data
+
+```{r}
+Uber_data2<-na.omit(Uber_data2)
+```
+
+```{r}
+sum(is.na(Uber_data2))
+```
+
+##### Checking for outliers
+
+```{r}
+library(gridExtra)
+```
+```{r}
+numeric_df <- select_if(Uber_data2, is.numeric)
+```
+
+```{r}
+par(mfrow = c(1, length(numeric_df)))
+for (i in seq_along(numeric_df)) {
+  boxplot(numeric_df[[i]],xlab = names(numeric_df)[i])
+}
+```
+
+##### Here we can see that there are few outliers in distance & price column mainly but they don't seem to effect our surge multiplier column directly so I decide to cap the outliers
+
+```{r}
+qn = quantile(Uber_data2$distance, c(0.05, 0.95), na.rm = TRUE)
+Uber_data2 = within(Uber_data2, { distance = ifelse(distance < qn[1], qn[1], distance)
+                  distance = ifelse(distance > qn[2], qn[2], distance)})
+```
+
+###### checking for outliers
+```{r}
+boxplot(Uber_data2$distance)
+```
+
+##### Capping the outliers in the price column  
+```{r}
+qn2 = quantile(Uber_data2$price, c(0.05, 0.95), na.rm = TRUE)
+Uber_data2 = within(Uber_data2, { price = ifelse(price < qn2[1], qn2[1], price)
+                  price = ifelse(price > qn2[2], qn2[2], price)})
+```
+
+```{r}
+boxplot(Uber_data2$price)
+```
+
+##### Finding the peaks months
+
+```{r}
+unique(Uber_data2$month)
+```
+
+
+
+
+```{r}
+Uber_total_month<-Uber_data2%>%
+  group_by(month)%>%
+  summarise(total = n())
+```
+
+```{r}
+## Trips by month
+ggplot(data = Uber_total_month, aes(month, total, fill = factor(total))) +
+  geom_bar(stat = "identity") + 
+  ylab("Count") + 
+  ggtitle("Trips by month") +
+  scale_fill_discrete(name = "Total")
+```
+
+##### Here we can see that there are onlyh two months in the dataset and this tells us that there were more number of Uber trips in december than November this may be due to the fact that tehre are a lot of tourists in the month of December
+
+
+##### Weekday total trips
+
+
+```{r}
+total_weekday_uber <- Uber_data2 %>% 
+  group_by(wday) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+
+```{r}
+## Trips by weekday
+ggplot(data = total_weekday_uber, aes(wday, total_count, fill = factor(total_count))) +
+  geom_bar(stat = "identity") + 
+  ylab("Count") + 
+  ggtitle("Trips by day of the week") +
+  scale_fill_discrete(name = "Total trips") + labs(title = "Pattern for trips taken each day of the week")+scale_y_continuous(expand = expansion(mult = c(0.05, 0.1)), 
+                     labels = scales::format_format(big.mark = ",", scientific = FALSE))
+```
+
+##### Here we can observe that most trips were taken during mon, tues, thursday & friday and sunday. Monday, Tuesday & thursday could be due to office days and sunday could be due to weekend effect. 
+
+```{r}
+location_weekday <- Uber_data2 %>% 
+  group_by(wday, source) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+
+```{r}
+ggplot(data = location_weekday, aes(x = source,y=mean, fill = wday)) +
+    geom_col(position = "dodge")+labs(title = "Distribution of trip counts for each location by weekdays", y = "Average trips", x = "Location")+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+```
+##### As we can see above that the distribution of trips by uber in each location is same for each weekday. And the highest trips are for monday, tuesday, thursday & Sunday.
+
+
+##### Trip by hour of day
+
+
+```{r}
+total_hour_uber <- Uber_data2 %>% 
+  group_by(hour) %>% 
+  summarise(total_count = n(),mean = mean(total_count))
+```
+
+```{r}
+ p1<-ggplot(total_hour_uber, aes(x=hour, y=total_count)) +
+  geom_line() + 
+  xlab("")+labs(title = "Distribution of trip counts at each hour of the day", y = "Average trips", x = "Hour of the day")
+p1
+```
+
+###### Here we can see there is a sudden increase in trips from 9-11am and again from 1- 2pm and again from 5-6 pm this generally indicate the office hours.
+
+
+##### Lets discuss the trips by location
+
+```{r}
+location_counts <- Uber_data2 %>%
+  group_by(source) %>%
+  summarise(total_count = n()) %>%
+  arrange(desc(total_count))
+```
+
+```{r}
+top_locations <- location_counts %>%
+  top_n(5, total_count) %>%
+  pull(source)
+
+
+subset_data <- Uber_data2 %>%
+  filter(source %in% top_locations)
+```
+
+
+
+
+```{r}
+subset_data %>% 
+  group_by(source, hour) %>%
+  summarise(Count = n(),medianCount = median(Count, na.rm=TRUE))%>%
+  ungroup() %>%
+  ggplot(aes(x = hour, y = medianCount, colour = source, group = source)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Median Hourly trips by location", 
+       x = "Hour", 
+       y = "Median Counts")
+```
+
+##### Here we can see that the top 5 locations for uber trips are Boston university, financial district, North End, Northeastern university & Theatre district. These indicates that Uber trips are more near the offices & university areas. Also the time of the day when the uber trips is highest is around 11am - 12pm and again from 5-6pm & 7-8pm in general but mainly for the Boston university location, Financial district location & Northeastern university locations.
+
+
+##### Lets look into the relationship of surge price multiplier with location, hour of the day & weather conditions.
+
+
+
+
+
+ 
+
+```{r}
+p3<-Uber_data2 %>% 
+  group_by(surge_multiplier, hour) %>%
+  filter(surge_multiplier==1)%>%
+  summarise(Count = n(),medianCount = median(Count, na.rm=TRUE))%>%
+  ungroup() %>%
+  ggplot(aes(x = hour, y = medianCount, colour = surge_multiplier, group = surge_multiplier)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Median Hourly surge multiplier",
+       x = "Hour", 
+       y = "Median Counts")
+p3
+
+```
+
+##### Here we can see that the mostly a surge multiplier of 1 is applied during 1-3am one possible reason could be due to the time since it is very late at night so supply could be low and highest during 11am  indicating peak office hours and another hike is seen after 8 pm that can be due the night hour time
+
+
+```{r}
+library(gridExtra)
+```
+
+```{r}
+grid.arrange(p1, p3, ncol=2)
+```
+
+##### As we can see above surge multiplier  by hour and avergae trips by hour is kind of relating to each other which means that uber is trying to add a surge to the prices when it is either a busy time of the day by looking into the fact that demand for cabs is also more suring that time of the day.
+
+```{r}
+Uber_data2 %>% 
+  group_by(surge_multiplier, wday) %>%
+  filter(surge_multiplier==1)%>%
+  summarise(Count = n(),medianCount = median(Count, na.rm=TRUE))%>%
+  ungroup() %>%
+  ggplot(aes(x = wday, y = medianCount, colour = surge_multiplier, group = surge_multiplier)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Median weekly surge multiplier",
+       x = "Weekdays", 
+       y = "Median Counts")
+
+
+```
+
+##### Here we can see that Tuesday is the day when maximum uber cabs applied a surge multiplier of 1. It also says that whenerver the trips taken were highest, that time a surge multiplier was applied. And we also saw earlier that tuesdays and thursdays the trisp taken were the most.
+
+```{r}
+Uber_data2 %>% 
+  group_by(surge_multiplier, wday, source) %>%
+  filter(surge_multiplier==1)%>%
+  summarise(Count = n(),medianCount = median(Count, na.rm=TRUE))%>%
+  ungroup() %>%
+  ggplot(aes(x = wday, y = medianCount, colour = surge_multiplier, group = surge_multiplier)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Median weekly surge multiplier by location",
+       x = "Weekdays", 
+       y = "Median Counts") +
+  facet_wrap(~source)+theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+##### Here we can see that the surge multiplier is no different location wise. and maximum for tuesdays & thursdays.
+
+
+```{r}
+Weather_surge<-read.csv("rideshare_kaggle.csv")
+```
+
+
+```{r}
+weather_surge2<-Weather_surge%>%
+  filter(cab_type == "Uber")
+
+```
+
+
+##### Frequency of total trips with different weather conditions
+
+
+```{r}
+ggplot(data=weather_surge2, aes(short_summary)) +
+    labs(x="Weathe", title="Average rides per weather condition") +
+    geom_bar(fill = 'dodgerblue1') + coord_flip() + theme_minimal()
+
+```
+
+##### Here we can see that average trips is highest for overcast, mostly cloudy & partly cloudy this indicates that more uber rides can be put on road for these weather conditions.
+
+
+
+```{r}
+weather_surge_counts <- weather_surge2 %>% 
+  group_by(short_summary, surge_multiplier) %>%
+  summarise(total_rides = n()) %>%
+  ungroup()
+
+```
+
+```{r}
+ggplot(weather_surge_counts, aes(x = short_summary, y = surge_multiplier, color = total_rides)) +
+  geom_point(size = 3) +
+  scale_color_gradient(low = "white", high = "dodgerblue1") +
+  theme_classic() +
+  labs(title = "Correlation between weather condition and surge multiplier",
+       x = "Weather Condition", y = "Surge Multiplier")+coord_flip()
+```
+
+##### Here we can observe that surge multiplier was maximum applied during bad weather conditions that is overcast, partly cloudy and mostly cloudy.
+
+
+```{r}
+hour_surge_counts <- weather_surge2 %>% 
+  group_by(hour, surge_multiplier) %>%
+  summarise(total_rides = n()) %>%
+  ungroup()
+```
+
+
+```{r}
+ggplot(hour_surge_counts, aes(x = hour, y = surge_multiplier, color = total_rides, size = total_rides)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "dodgerblue1") +
+  scale_size(range = c(3, 8)) + 
+  theme_classic() +
+  labs(title = "Correlation between hour and surge multiplier",
+       x = "Hour", y = "Surge Multiplier")
+
+```
+
+##### Here, we can see that surge multiplier is mostly applied after 8 pm & around 12 am and slightly also between 10am - 3pm.
+
+
+
+
+
+##### Conclusion: From this EDA analysis of 3 different datsets we can verify that surge multiplies depends on various fcators such as demand on days, hours, weather conditions. and also locations and by analyzing these factors a predictive model can be built to apply a surge multiplier.I have also used different datasets because I wanted to verify the results for different locations. The second dataset was from the location Boston the link to download this dataset is: 
+
+[Uber& lift cab prices](https://www.kaggle.com/datasets/ravi72munde/uber-lyft-cab-prices)
+#### The first dataset belonged to New york city. The link to the first few datasets can be downloaded from here:
+[Uber-rides](https://www.kaggle.com/datasets/fivethirtyeight/uber-pickups-in-new-york-city)
+
+[Weather_surge2](https://www.kaggle.com/datasets/deexithreddy/rideshare-kaggle)
+
+[Uber_Data & weather_new data](https://www.kaggle.com/datasets/ravi72munde/uber-lyft-cab-prices?select=cab_rides.csv)
+
+
+[Different months data.](https://www.kaggle.com/code/jackylao116/uber-raw-data-visualizations/input)
+
+[NYC weather data](https://www.kaggle.com/datasets/mathijs/weather-data-in-new-york-city-2016)
